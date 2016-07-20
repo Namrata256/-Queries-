@@ -1,0 +1,53 @@
+--agent details 
+SELECT DISTINCT  pp.party_code AS Agent_code,
+REPLACE(REPLACE(REPLACE(first_name, CHR(10), ''), CHR(13), ''), CHR(9), '') first_name,
+REPLACE(REPLACE(REPLACE(middle_name, CHR(10), ''), CHR(13), ''), CHR(9), '') middle_name,
+REPLACE(REPLACE(REPLACE(last_name, CHR(10), ''), CHR(13), ''), CHR(9), '')last_name,
+other_name,
+title,
+nationality,
+a.parent_party,a.sex,a.agent_license_number,a.agent_pan_number ,/*a.passport_photo_sub,*/a.agent_license_issue_date,a.agent_license_expiry_date,
+a.agent_branch_name,a.agent_branch_type,a.muffosil_agent,a.name_of_the_country,a.zip_code,a.aadhar_no,
+a.csc_code,a.csc_name,a.centre_address,a.district_name,a.panchayat_name,a.block_name,a.entrepreneur_code,a.father_name,
+a.date_of_birth,a.edu_qualification,a.prof_qualification,a.nia_agency_code,
+REPLACE(REPLACE(REPLACE(pa.party_address_line_1, CHR(10), ''), CHR(13), ''), CHR(9), '') party_address_line_1,
+REPLACE(REPLACE(REPLACE(pa.party_address_line_2, CHR(10), ''), CHR(13), ''), CHR(9), '') party_address_line_2,
+bd.location,ss.State_Name,bd.country_code,pin.pin,pa.telephone_1,pa.telephone_2,pa.telephone_3 AS mobile_no,pa.email1,pa.email2,
+pa.party_address_type,
+a.serial_number,a.candidate_number,
+a.urn_number,a.irda_agency_status_code,a.examination_body_name,a.candidate_marks,a.examination_centre_name,
+a.exam_centre_code,a.date_of_passing_exam,a.passport_photo_sub,a.age_proof_sub,a.pancard_copy_sub,a.resi_add_sub,
+a.qualification_proof_sub,a.prof_quali_sub,a.exam_pass_sub,a.cessation_sub,a.undertaking_doc_sub,a.training_exp_cert_sub,
+a.irdai_and_id_card_sub
+FROM ODS.AGENT_INDIVIDUAL a,
+ (SELECT * FROM 
+            (SELECT /*+ PARALLEL (CF,4) */ CF.Party_Id,cf.first_name,cf.middle_name,cf.last_name,
+            cf.other_name,cf.title,cf.nationality,
+            ROW_NUMBER() OVER (PARTITION BY CF.PARTY_ID 
+                            ORDER BY CF.INDIVIDUAL_PARTY_DETAILS_ID DESC) SEQ
+             FROM ODS.INDIVIDUAL_PARTY_DETAILS CF
+        WHERE   EFFECTIVE_END_DATE IS NULL
+        /*AND cf.party_id='5780247303101008'*/) 
+      WHERE SEQ = 1) ip,party pp,
+      (SELECT * FROM (SELECT /*+ PARALLEL (PA,4) */
+                 PA.Party_Id,pa.party_address_line_1,pa.party_address_line_2, pa.pin_code_id,pa.state_id,
+                 pa.telephone_1,pa.telephone_2,pa.telephone_3,pa.email1,pa.email2,pa.party_address_type,
+                 ROW_NUMBER() OVER(PARTITION BY PA.PARTY_ID ORDER BY PA.PARTY_ADDRESS_ID DESC) SEQ
+           FROM ODS.PARTY_ADDRESS PA
+           WHERE PA.EFFECTIVE_END_DATE IS NULL
+           AND PA.PARTY_ADDRESS_TYPE <> 'Risk Contact') PA
+            WHERE SEQ = 1) PA,
+           pin_code pin,
+           state SS,
+           branch_details_prd_tab bd,
+           branch_hierarchy bh
+WHERE a.agent_branch_name=bd.location
+AND  bd.location=bh.branch_id
+AND ip.party_id(+)=a.Individual_Agent_Id
+AND pa.party_id(+)=a.individual_agent_id
+AND pa.state_id=ss.State_Id(+)
+AND pa.pin_code_id=pin.pin_code_id(+)
+AND pp.party_id=a.individual_agent_id
+AND bh.level_2_branch='710000'
+AND a.effective_end_date IS NULL
+ORDER BY 1
