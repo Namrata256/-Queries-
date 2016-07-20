@@ -1,0 +1,44 @@
+---hospitalisation 
+SELECT LEVEL_2_BRANCH AS RO_CODE, LEVEL_2_NAME AS RO_NAME, LOCATION,
+        CONCAT(CLAIM_NUMBER,':') AS CLAIM_NUMBER, POLICY_NUMBER, 
+        SUM(A.ATD_DEBIT_AMOUNT - A.ATD_CREDIT_AMOUNT) AS PAID_AMOUNT,
+        ACC_DEPARTMENT_CODE, PRODUCT_CODE, STATUS,pd.sum_insured,
+        INTIMATION_DATE, REGISTRATION_DATE, LOSS_DATE, 
+        POLICY_INCEPTION_DATE, POLICY_EXPIRY_DATE,  
+        ESTIMATED_AMOUNT, STATUS, DEV_OFFICER_CODE,
+        C.BRANCH AS CLAIM_PROCESSING_BRANCH,
+        REPLACE(REPLACE(REPLACE(POLICY_HOLDER_NAME, CHR(10), ''), CHR(13), ''), CHR(9), '') AS POLICY_HOLDER_NAME,
+        REPLACE(REPLACE(REPLACE(DEV_OFFICER_NAME, CHR(10), ''), CHR(13), ''), CHR(9), '') AS DEV_OFFICER_NAME,
+        ts.party_code AS TPA_code,
+        ts.tpa_name ,hospital_cash,date_of_admission,date_of_discharge
+       
+   FROM BASIC_CLAIM_REP_NEW A,
+         BRANCH_DETAILS_PRD_TAB BD, BRANCH_HIERARCHY BH, CLAIM C, PRODUCT P,
+         POLICY_DETAIL_PRD_DECOMP PD, STAKEHOLDER_RLTN_VIEW_DECOMP ST,
+         tpa_stake ts,
+           (SELECT rc.claim_id,rc.hospital_cash,rc.date_of_admission,rc.date_of_discharge
+           FROM ods.CLAIM_RISK_PROPERTY_HEALTH rc
+                      WHERE rc.claim_risk_property_id = (SELECT MAX(claim_risk_property_id) FROM ods.CLAIM_RISK_PROPERTY_HEALTH rc1
+                         WHERE rc1.claim_id=rc.claim_id
+                         --AND rc.claim_id = 33538033705062012
+                         )) rc
+  WHERE A.BRANCH_CODE = BD.BRANCH_CODE
+    AND BD.LOCATION = BH.BRANCH_ID
+    AND A.CLAIM_ID = C.CLAIM_ID
+    AND C.PRODUCT_ID = P.PRODUCT_ID 
+    AND C.POLICY_ID = PD.POLICY_ID
+    AND C.POLICY_ID = ST.POLICY_ID
+    AND ts.party_id(+)=st.tpa_id
+    AND rc.claim_id=a.claim_id(+)
+    AND p.product_code IN ('NP','AK','NM')
+    AND A.ACC_ACCOUNT_TYPE = '1301'
+  AND LEVEL_2_BRANCH = '170000'
+    AND A.ATN_TRANSACTION_DATE BETWEEN '01-APR-2016' AND '30-APR-2016'
+  GROUP BY LEVEL_2_BRANCH, LEVEL_2_NAME, LOCATION, CLAIM_NUMBER, 
+           POLICY_NUMBER, ACC_DEPARTMENT_CODE, PRODUCT_CODE,
+           INTIMATION_DATE, REGISTRATION_DATE, LOSS_DATE, 
+           POLICY_INCEPTION_DATE, POLICY_EXPIRY_DATE, STATUS, 
+           ESTIMATED_AMOUNT, STATUS, DEV_OFFICER_CODE,
+           C.BRANCH, POLICY_HOLDER_NAME, DEV_OFFICER_NAME,
+            ts.party_code ,ts.tpa_name ,pd.sum_insured,hospital_cash,date_of_admission,date_of_discharge
+  HAVING SUM(A.ATD_DEBIT_AMOUNT - A.ATD_CREDIT_AMOUNT) <> 0
